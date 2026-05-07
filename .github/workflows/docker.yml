@@ -2,18 +2,15 @@ name: AllergyLab CI
 
 on: [push]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4.1.7
-      - name: Build Docker images
-        run: |
-          cd Part7a
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/al-app:latest ./app
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/al-db-loader:latest ./db-loader
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/al-email:latest ./email
+    - name: Checkout source
+      uses: actions/checkout@v4
+    - name: Build images
+      run: |
+        cd Part7a
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/al-app:latest ./app
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/al-db-loader:latest ./db-loader
+        docker build -t ${{ secrets.DOCKER_USERNAME }}/al-email:latest ./email
