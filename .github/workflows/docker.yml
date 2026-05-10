@@ -8,7 +8,6 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
 
 jobs:
   build:
@@ -16,28 +15,31 @@ jobs:
     steps:
     - name: Checkout source
       uses: actions/checkout@v5
-    - name: Validate DockerHub username
+    - name: Normalize DockerHub username
+      id: dockerhub
       run: |
+        DOCKER_USERNAME="$(printf '%s' '${{ secrets.DOCKER_USERNAME }}' | tr -d '[:space:]')"
         if [[ -z "${DOCKER_USERNAME}" ]]; then
-          echo "Missing secret DOCKER_USERNAME"
+          echo "Missing or empty secret DOCKER_USERNAME"
           exit 1
         fi
+        echo "username=${DOCKER_USERNAME}" >> "$GITHUB_OUTPUT"
     - name: Build images
       working-directory: Part7a
       run: |
-        APP_IMAGE="${DOCKER_USERNAME}/al-app:${{ github.sha }}"
+        APP_IMAGE="${{ steps.dockerhub.outputs.username }}/al-app:${{ github.sha }}"
         echo APP_IMAGE=$APP_IMAGE >> $GITHUB_ENV        # makes the variable available in other steps
         docker build -t "$APP_IMAGE" ./app
-        DB_LOADER_IMAGE="${DOCKER_USERNAME}/al-db-loader:${{ github.sha }}"
+        DB_LOADER_IMAGE="${{ steps.dockerhub.outputs.username }}/al-db-loader:${{ github.sha }}"
         echo DB_LOADER_IMAGE=$DB_LOADER_IMAGE >> $GITHUB_ENV
         docker build -t "$DB_LOADER_IMAGE" ./db-loader
-        EMAIL_IMAGE="${DOCKER_USERNAME}/al-email:${{ github.sha }}"
+        EMAIL_IMAGE="${{ steps.dockerhub.outputs.username }}/al-email:${{ github.sha }}"
         echo EMAIL_IMAGE=$EMAIL_IMAGE >> $GITHUB_ENV
         docker build -t "$EMAIL_IMAGE" ./email
     - name: Log in to Docker
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKER_USERNAME }}
+        username: ${{ steps.dockerhub.outputs.username }}
         password: ${{ secrets.DOCKER_TOKEN }}
     - name: Push images to DockerHub
       run: |
@@ -65,19 +67,28 @@ jobs:
     steps:
     - name: '**PLACEHOLDER** Deploy to Kubernetes'
       run: echo Placeholder for Deployment
+    - name: Normalize DockerHub username
+      id: dockerhub
+      run: |
+        DOCKER_USERNAME="$(printf '%s' '${{ secrets.DOCKER_USERNAME }}' | tr -d '[:space:]')"
+        if [[ -z "${DOCKER_USERNAME}" ]]; then
+          echo "Missing or empty secret DOCKER_USERNAME"
+          exit 1
+        fi
+        echo "username=${DOCKER_USERNAME}" >> "$GITHUB_OUTPUT"
     - name: Install cosign
       uses: sigstore/cosign-installer@v3
     - name: Verify and run images
       env:
         COSIGN_YES: "true"
       run: |
-        APP_IMAGE="${DOCKER_USERNAME}/al-app:${{ github.sha }}"
+        APP_IMAGE="${{ steps.dockerhub.outputs.username }}/al-app:${{ github.sha }}"
         docker pull "$APP_IMAGE"
         cosign verify --certificate-identity https://github.com/${{ github.repository }}/.github/workflows/docker.yml@refs/heads/main --certificate-oidc-issuer https://token.actions.githubusercontent.com "$APP_IMAGE"
-        DB_LOADER_IMAGE="${DOCKER_USERNAME}/al-db-loader:${{ github.sha }}"
+        DB_LOADER_IMAGE="${{ steps.dockerhub.outputs.username }}/al-db-loader:${{ github.sha }}"
         docker pull "$DB_LOADER_IMAGE"
         cosign verify --certificate-identity https://github.com/${{ github.repository }}/.github/workflows/docker.yml@refs/heads/main --certificate-oidc-issuer https://token.actions.githubusercontent.com "$DB_LOADER_IMAGE"
-        EMAIL_IMAGE="${DOCKER_USERNAME}/al-email:${{ github.sha }}"
+        EMAIL_IMAGE="${{ steps.dockerhub.outputs.username }}/al-email:${{ github.sha }}"
         docker pull "$EMAIL_IMAGE"
         cosign verify --certificate-identity https://github.com/${{ github.repository }}/.github/workflows/docker.yml@refs/heads/main --certificate-oidc-issuer https://token.actions.githubusercontent.com "$EMAIL_IMAGE"
         docker run -d "$APP_IMAGE"
